@@ -1,92 +1,131 @@
 #include <iostream>
+#include <string>
 #include <vector>
-#include <map>
+#include <unordered_map>
+#include <set>
 #include <algorithm>
-#include <sstream>
 
-using namespace std;
+class UnionFind {
+private:
+    std::unordered_map<std::string, std::string> padre;
+    std::unordered_map<std::string, int> rango;
 
-struct Road {
-    string id;
-    int city1, city2, cost;
+public:
+    void hacerConjunto(const std::string& elemento) {
+        padre[elemento] = elemento;
+        rango[elemento] = 0;
+    }
 
-    bool operator<(const Road& other) const {
-        if (cost != other.cost) return cost < other.cost;
-        return id < other.id;
+    std::string encontrar(const std::string& elemento) {
+        if (padre[elemento] != elemento)
+            padre[elemento] = encontrar(padre[elemento]);
+        return padre[elemento];
+    }
+
+    bool unirConjuntos(const std::string& a, const std::string& b) {
+        std::string raizA = encontrar(a);
+        std::string raizB = encontrar(b);
+
+        if (raizA == raizB) {
+            return false;
+        }
+
+        if (rango[raizA] < rango[raizB]) {
+            padre[raizA] = raizB;
+        } else if (rango[raizA] > rango[raizB]) {
+            padre[raizB] = raizA;
+        } else {
+            padre[raizB] = raizA;
+            rango[raizA]++;
+        }
+
+        return true;
     }
 };
 
-vector<int> parent;
+struct Carretera {
+    std::string id;
+    std::string ciudad1;
+    std::string ciudad2;
+    int costo;
 
-int findSet(int v) {
-    if (v == parent[v])
-        return v;
-    return parent[v] = findSet(parent[v]);
-}
+    Carretera(const std::string& i, const std::string& c1, const std::string& c2, int co = 0)
+        : id(i), ciudad1(c1), ciudad2(c2), costo(co) {}
+};
 
-void makeSet(int v) {
-    parent[v] = v;
-}
-
-void unionSets(int a, int b) {
-    a = findSet(a);
-    b = findSet(b);
-    if (a != b)
-        parent[b] = a;
-}
-
-vector<string> reconstructRoads(vector<string> roads) {
-    map<string, int> cityToInt;
-    vector<Road> roadList;
-    int cityCounter = 0;
-
-    for (string road : roads) {
-        stringstream ss(road);
-        string id, cityA, cityB;
-        int cost = -1;
-        ss >> id >> cityA >> cityB;
-
-        if (ss >> cost) {
-            if (cityToInt.find(cityA) == cityToInt.end()) cityToInt[cityA] = cityCounter++;
-            if (cityToInt.find(cityB) == cityToInt.end()) cityToInt[cityB] = cityCounter++;
-            roadList.push_back({id, cityToInt[cityA], cityToInt[cityB], cost});
-        }
+std::vector<std::string> split(const std::string& str, char delimiter) {
+    std::vector<std::string> result;
+    size_t start = 0;
+    size_t end = str.find(delimiter);
+    while (end != std::string::npos) {
+        result.push_back(str.substr(start, end - start));
+        start = end + 1;
+        end = str.find(delimiter, start);
     }
-
-    sort(roadList.begin(), roadList.end());
-    parent.resize(cityCounter);
-
-    for (int i = 0; i < cityCounter; i++) makeSet(i);
-
-    vector<string> result;
-
-    for (const auto& road : roadList) {
-        if (findSet(road.city1) != findSet(road.city2)) {
-            result.push_back(road.id);
-            unionSets(road.city1, road.city2);
-        }
-    }
-
-    for (int i = 1; i < cityCounter; i++) {
-        if (findSet(i) != findSet(0)) {
-            result.clear();
-            result.push_back("IMPOSSIBLE");
-            break;
-        }
-    }
-
+    result.push_back(str.substr(start));
     return result;
 }
 
-int main() {
-    vector<string> roads = {"R1 Lima Trujillo 1", "R2 Tacna Trujillo", "R3 Tacna Arequipa"};
-    vector<string> result = reconstructRoads(roads);
+std::string reconstruye(std::vector<std::string> listaCarreteras) {
+    std::vector<Carretera> carreterasDeterioradas;
+    UnionFind uf;
+    std::set<std::string> raices; // Conjunto de raíces de conjuntos
 
-    for (const string& id : result) {
-        cout << id << " ";
+    for (const auto& carreteraStr : listaCarreteras) {
+        auto elementos = split(carreteraStr, ' ');
+        std::string id = elementos[0];
+        std::string ciudad1 = elementos[1];
+        std::string ciudad2 = elementos[2];
+
+        uf.hacerConjunto(ciudad1);
+        uf.hacerConjunto(ciudad2);
+        raices.insert(uf.encontrar(ciudad1));
+        raices.insert(uf.encontrar(ciudad2));
     }
 
-    cout << endl;
+    for (const auto& carreteraStr : listaCarreteras) {
+        auto elementos = split(carreteraStr, ' ');
+        std::string id = elementos[0];
+        std::string ciudad1 = elementos[1];
+        std::string ciudad2 = elementos[2];
+        int costo = (elementos.size() > 3) ? std::stoi(elementos[3]) : 0;
 
+        if (costo == 0) {
+            uf.unirConjuntos(ciudad1, ciudad2);
+        } else {
+            carreterasDeterioradas.emplace_back(id, ciudad1, ciudad2, costo);
+        }
+    }
+
+    std::sort(carreterasDeterioradas.begin(), carreterasDeterioradas.end(),
+              [](const Carretera& a, const Carretera& b) {
+                  if (a.costo != b.costo) {
+                      return a.costo < b.costo;
+                  }
+                  return a.id < b.id;
+              });
+
+    std::set<std::string> carreterasSeleccionadas;
+
+    for (const auto& carretera : carreterasDeterioradas) {
+        if (uf.encontrar(carretera.ciudad1) != uf.encontrar(carretera.ciudad2)) {
+            uf.unirConjuntos(carretera.ciudad1, carretera.ciudad2);
+            carreterasSeleccionadas.insert(carretera.id);
+        }
+    }
+
+    if (raices.size() == 1) {
+        std::string resultado;
+        for (const auto& id : carreterasSeleccionadas) {
+            resultado += id + " ";
+        }
+        return resultado.empty() ? "" : resultado.substr(0, resultado.length() - 1);
+    } else {
+        return "IMPOSIBLE";
+    }
+}
+
+int main() {
+    // Tu código principal aquí
     return 0;
 }
