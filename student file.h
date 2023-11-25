@@ -1,110 +1,92 @@
 #include <iostream>
 #include <vector>
-#include <string>
-#include <sstream>
+#include <map>
 #include <algorithm>
-#include <unordered_set>
+#include <sstream>
 
 using namespace std;
 
 struct Road {
     string id;
-    string city1;
-    string city2;
-    int cost;
-    bool requiresRepair;
+    int city1, city2, cost;
 
-    Road(string i, string c1, string c2, int co) : id(i), city1(c1), city2(c2), cost(co), requiresRepair(co > 0) {}
+    bool operator<(const Road& other) const {
+        if (cost != other.cost) return cost < other.cost;
+        return id < other.id;
+    }
 };
 
-bool compareRoads(const Road& a, const Road& b) {
-    if (a.cost != b.cost) return a.cost < b.cost;
-    return a.id < b.id;
+vector<int> parent;
+
+int findSet(int v) {
+    if (v == parent[v])
+        return v;
+    return parent[v] = findSet(parent[v]);
 }
 
-class CityNetwork {
-private:
-    vector<int> parent;
-    vector<string> cities;
+void makeSet(int v) {
+    parent[v] = v;
+}
 
-    int find(int x) {
-        if (parent[x] != x) {
-            parent[x] = find(parent[x]);
-        }
-        return parent[x];
-    }
+void unionSets(int a, int b) {
+    a = findSet(a);
+    b = findSet(b);
+    if (a != b)
+        parent[b] = a;
+}
 
-public:
-    CityNetwork(const unordered_set<string>& allCities) {
-        for (const string& city : allCities) {
-            cities.push_back(city);
-            parent.push_back(parent.size());
-        }
-    }
+vector<string> reconstructRoads(vector<string> roads) {
+    map<string, int> cityToInt;
+    vector<Road> roadList;
+    int cityCounter = 0;
 
-    void connect(string city1, string city2) {
-        int i = findCity(city1);
-        int j = findCity(city2);
-        parent[find(i)] = find(j);
-    }
-
-    bool isConnected(string city1, string city2) {
-        return find(findCity(city1)) == find(findCity(city2));
-    }
-
-    int findCity(const string& city) {
-        for (size_t i = 0; i < cities.size(); ++i) {
-            if (cities[i] == city) return i;
-        }
-        return -1;
-    }
-};
-
-string rebuildNetwork(vector<string> roads) {
-    vector<Road> network;
-    unordered_set<string> allCitiesSet;
-
-    for (const string& road : roads) {
+    for (string road : roads) {
         stringstream ss(road);
-        string id, city1, city2;
-        int cost = 0;
-        ss >> id >> city1 >> city2;
+        string id, cityA, cityB;
+        int cost = -1;
+        ss >> id >> cityA >> cityB;
+
         if (ss >> cost) {
-            network.emplace_back(id, city1, city2, cost);
-        } else {
-            network.emplace_back(id, city1, city2, 0);
-        }
-        allCitiesSet.insert(city1);
-        allCitiesSet.insert(city2);
-    }
-
-    sort(network.begin(), network.end(), compareRoads);
-
-    CityNetwork cityNetwork(allCitiesSet);
-
-    vector<string> toRepair;
-    for (const Road& road : network) {
-        if (!cityNetwork.isConnected(road.city1, road.city2)) {
-            cityNetwork.connect(road.city1, road.city2);
-            if (road.requiresRepair) {
-                toRepair.push_back(road.id);
-            }
+            if (cityToInt.find(cityA) == cityToInt.end()) cityToInt[cityA] = cityCounter++;
+            if (cityToInt.find(cityB) == cityToInt.end()) cityToInt[cityB] = cityCounter++;
+            roadList.push_back({id, cityToInt[cityA], cityToInt[cityB], cost});
         }
     }
 
-    for (const string& city1 : allCitiesSet) {
-        for (const string& city2 : allCitiesSet) {
-            if (!cityNetwork.isConnected(city1, city2)) {
-                return "IMPOSSIBLE";
-            }
+    sort(roadList.begin(), roadList.end());
+    parent.resize(cityCounter);
+
+    for (int i = 0; i < cityCounter; i++) makeSet(i);
+
+    vector<string> result;
+
+    for (const auto& road : roadList) {
+        if (findSet(road.city1) != findSet(road.city2)) {
+            result.push_back(road.id);
+            unionSets(road.city1, road.city2);
         }
     }
 
-    sort(toRepair.begin(), toRepair.end());
-    string result;
-    for (const string& id : toRepair) {
-        if (!result.empty()) result += " ";
-        result += id;
+    for (int i = 1; i < cityCounter; i++) {
+        if (findSet(i) != findSet(0)) {
+            result.clear();
+            result.push_back("IMPOSSIBLE");
+            break;
+        }
     }
+
     return result;
+}
+
+int main() {
+    vector<string> roads = {"R1 Lima Trujillo 1", "R2 Tacna Trujillo", "R3 Tacna Arequipa"};
+    vector<string> result = reconstructRoads(roads);
+
+    for (const string& id : result) {
+        cout << id << " ";
+    }
+
+    cout << endl;
+
+    return 0;
 }
