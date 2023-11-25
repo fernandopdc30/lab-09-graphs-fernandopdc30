@@ -1,132 +1,127 @@
-#include <iostream>
+#include <string>
 #include <vector>
+#include <sstream>
+#include <map>
+#include <set>
 #include <algorithm>
-#include <unordered_map>
+#include <iostream>
 
 using namespace std;
 
-struct Subset {
-    int parent, rank;
-};
+class Union {
+private:
+  map<string, string> padre;
+  map<string, int> rango;
 
-class Road {
 public:
-    string roadId;
-    int city1, city2, cost;
+  void hacerConjunto(const string& elemento) {
+    padre[elemento] = elemento;
+    rango[elemento] = 0;
+  }
 
-    Road(string id, int c1, int c2, int cost) : roadId(id), city1(c1), city2(c2), cost(cost) {}
+  string encontrar(const string& elemento) {
+    if (padre[elemento] != elemento)
+      padre[elemento] = encontrar(padre[elemento]);
+    return padre[elemento];
+  }
 
-    bool operator<(const Road& compareRoad) const {
-        int compareCost = this->cost - compareRoad.cost;
-        if (compareCost != 0) return compareCost < 0;
-        return this->roadId < compareRoad.roadId;
+  bool unirConjuntos(const string& a, const string& b) {
+    string raizA = encontrar(a);
+    string raizB = encontrar(b);
+
+    if (raizA == raizB) {
+      return false;
     }
+
+    if (rango[raizA] < rango[raizB]) {
+      padre[raizA] = raizB;
+    } else if (rango[raizA] > rango[raizB]) {
+      padre[raizB] = raizA;
+    } else {
+      padre[raizB] = raizA;
+      rango[raizA]++;
+    }
+
+    return true;
+  }
 };
 
-class TransportationNetwork {
+class Carretera {
 public:
-    vector<Road> roads;
-    unordered_map<string, int> cityMap;
+  string id;
+  string ciudad1;
+  string ciudad2;
+  int costo;
 
-    TransportationNetwork() {}
-
-    int find(Subset subsets[], int i) {
-        if (subsets[i].parent != i) {
-            subsets[i].parent = find(subsets, subsets[i].parent);
-        }
-        return subsets[i].parent;
-    }
-
-    void uniteSets(Subset subsets[], int x, int y) {
-        int xRoot = find(subsets, x);
-        int yRoot = find(subsets, y);
-
-        if (subsets[xRoot].rank < subsets[yRoot].rank) {
-            subsets[xRoot].parent = yRoot;
-        } else if (subsets[xRoot].rank > subsets[yRoot].rank) {
-            subsets[yRoot].parent = xRoot;
-        } else {
-            subsets[xRoot].parent = yRoot;
-            subsets[xRoot].rank++;
-        }
-    }
-
-    void addConnection(string id, string city1, string city2, int cost) {
-        if (cityMap.find(city1) == cityMap.end()) {
-            cityMap[city1] = cityMap.size(); 
-        }
-        if (cityMap.find(city2) == cityMap.end()) {
-            cityMap[city2] = cityMap.size(); 
-        }
-        roads.emplace_back(id, cityMap[city1], cityMap[city2], cost);
-    }
-
-    string findOptimalRepair() {
-        if (roads.empty()) {
-            return "NO SOLUTION";
-        }
-
-        sort(roads.begin(), roads.end());
-
-        Subset subsets[cityMap.size()];
-        for (int i = 0; i < cityMap.size(); ++i) {
-            subsets[i].parent = i;
-            subsets[i].rank = 0;
-        }
-
-        string roadToRepair = "";
-        int minRepairCost = INT_MAX;
-
-        int connectedCities = 0;
-
-        for (const Road& road : roads) {
-            int x = find(subsets, road.city1);
-            int y = find(subsets, road.city2);
-
-            if (x != y) {
-                if (road.cost != 0 && road.cost < minRepairCost) {
-                    roadToRepair += road.roadId;
-                    minRepairCost = road.cost;
-                }
-                uniteSets(subsets, x, y);
-                connectedCities++;
-            }
-        }
-
-        if (connectedCities == 0 && cityMap.size() == 1) {
-            return "";
-        } else if (connectedCities < cityMap.size() - 1) {
-            return "NO SOLUTION";
-        }
-
-        return roadToRepair.empty() ? "" : roadToRepair;
-    }
+  Carretera(string i, string c1, string c2, int co = 0) : id(i), ciudad1(c1), ciudad2(c2), costo(co) {}
 };
 
-string reconstructRoads(vector<string>& roadList) {
-    if (roadList.size() == 1) {
-        return "";
-    }
-
-    TransportationNetwork network;
-
-    for (const string& road : roadList) {
-        vector<string> parts;
-
-        size_t start = 0, end = 0;
-        while ((end = road.find(' ', start)) != string::npos) {
-            parts.push_back(road.substr(start, end - start));
-            start = end + 1;
-        }
-        parts.push_back(road.substr(start));
-        try {
-            int cost = stoi(parts[3]);
-            network.addConnection(parts[0], parts[1], parts[2], cost);
-        } catch (invalid_argument& e) {
-            return "NO SOLUTION";
-        }
-    }
-
-    return network.findOptimalRepair();
+// Inicializa conjuntos para cada ciudad.
+void inicializarConjuntos(Union& unionCiudad, set<string>& ciudades, const vector<string>& listaCarreteras) {
+  for (const auto& carreteraStr : listaCarreteras) {
+    stringstream ss(carreteraStr);
+    string id, ciudad1, ciudad2;
+    ss >> id >> ciudad1 >> ciudad2;
+    unionCiudad.hacerConjunto(ciudad1);
+      unionCiudad.hacerConjunto(ciudad2);
+    ciudades.insert(ciudad1);
+    ciudades.insert(ciudad2);
+  }
 }
 
+// Verifica que todas las ciudades estén conectadas.
+bool todasCiudadesConectadas(Union& unionCiudad, const set<string>& ciudades) {
+  string raiz = unionCiudad.encontrar(*ciudades.begin());
+  for (const auto& ciudad : ciudades) {
+    if (unionCiudad.encontrar(ciudad) != raiz) {
+      return false;
+    }
+  }
+  return true;
+}
+
+// Reconstruye y devuelve la lista de carreteras seleccionadas.
+string reconstruye(vector<string> listaCarreteras) {
+  vector<Carretera> carreterasDeterioradas;
+  Union unionCiudad;
+  set<string> ciudades;
+  set<string> carreterasSeleccionadas;
+
+  inicializarConjuntos(unionCiudad, ciudades, listaCarreteras);
+
+  for (const auto& carreteraStr : listaCarreteras) {
+    stringstream ss(carreteraStr);
+    string id, ciudad1, ciudad2;
+    int costo = 0;
+    ss >> id >> ciudad1 >> ciudad2;
+    if (!(ss >> costo)) {
+        unionCiudad.unirConjuntos(ciudad1, ciudad2);
+    } else {
+      carreterasDeterioradas.emplace_back(id, ciudad1, ciudad2, costo);
+    }
+  }
+
+  sort(carreterasDeterioradas.begin(), carreterasDeterioradas.end(), [](const Carretera& a, const Carretera& b) {
+    if (a.costo != b.costo) {
+      return a.costo < b.costo;
+    }
+    return a.id < b.id;
+  });
+
+  for (const auto& carretera : carreterasDeterioradas) {
+    if (unionCiudad.encontrar(carretera.ciudad1) != unionCiudad.encontrar(carretera.ciudad2)) {
+          unionCiudad.unirConjuntos(carretera.ciudad1, carretera.ciudad2);
+      carreterasSeleccionadas.insert(carretera.id);
+    }
+  }
+
+  if (todasCiudadesConectadas(unionCiudad, ciudades)) {
+    string resultado;
+    for (const auto& id : carreterasSeleccionadas) {
+      resultado += id + " ";
+    }
+    return resultado.empty() ? "" : resultado.substr(0, resultado.length() - 1);
+  } else {
+    return "IMPOSIBLE";
+  }
+}
