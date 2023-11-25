@@ -1,112 +1,111 @@
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
+#include <iostream>
+#include <vector>
+#include <string>
+#include <sstream>
+#include <map>
+#include <set>
+#include <algorithm>
 
-#define MAX_CARRETERAS 50
-#define MAX_ELEMENTO_CARRETERA 50
+class UnionFind {
+private:
+    std::map<std::string, std::string> parent;
+    std::map<std::string, int> rank;
 
-typedef struct {
-    char id[MAX_ELEMENTO_CARRETERA];
-    char ciudad1[MAX_ELEMENTO_CARRETERA];
-    char ciudad2[MAX_ELEMENTO_CARRETERA];
-    int costo;
-} Carretera;
-
-typedef struct {
-    char padre[MAX_ELEMENTO_CARRETERA];
-    int costoTotal;
-} Ciudad;
-
-void inicializarCiudades(Ciudad ciudades[], int numCiudades) {
-    for (int i = 0; i < numCiudades; i++) {
-        strcpy(ciudades[i].padre, "");
-        ciudades[i].costoTotal = 0;
-    }
-}
-
-int encontrarPadre(Ciudad ciudades[], int ciudad) {
-    if (strcmp(ciudades[ciudad].padre, "") == 0) {
-        return ciudad;
-    } else {
-        return encontrarPadre(ciudades, atoi(ciudades[ciudad].padre));
-    }
-}
-
-void unirCiudades(Ciudad ciudades[], int ciudad1, int ciudad2) {
-    int padreCiudad1 = encontrarPadre(ciudades, ciudad1);
-    int padreCiudad2 = encontrarPadre(ciudades, ciudad2);
-
-    if (padreCiudad1 != padreCiudad2) {
-        sprintf(ciudades[padreCiudad1].padre, "%d", padreCiudad2);
-    }
-}
-
-int compararCarreteras(const void *a, const void *b) {
-    return strcmp(((Carretera *)a)->id, ((Carretera *)b)->id);
-}
-
-char* reconstruye(char* carreteras[], int numCarreteras) {
-    Carretera arregloCarreteras[MAX_CARRETERAS];
-    Ciudad ciudades[MAX_CARRETERAS];
-
-    for (int i = 0; i < MAX_CARRETERAS; i++) {
-        strcpy(arregloCarreteras[i].id, "");
-        strcpy(arregloCarreteras[i].ciudad1, "");
-        strcpy(arregloCarreteras[i].ciudad2, "");
-        arregloCarreteras[i].costo = 0;
-
-        strcpy(ciudades[i].padre, "");
-        ciudades[i].costoTotal = 0;
+public:
+    void makeSet(const std::string& s) {
+        parent[s] = s;
+        rank[s] = 0;
     }
 
-    for (int i = 0; i < numCarreteras; i++) {
-        sscanf(carreteras[i], "%s %s %s %d", arregloCarreteras[i].id, arregloCarreteras[i].ciudad1,
-               arregloCarreteras[i].ciudad2, &arregloCarreteras[i].costo);
+    std::string find(const std::string& s) {
+        return (parent[s] == s) ? s : (parent[s] = find(parent[s]));
+    }
 
-        if (arregloCarreteras[i].costo == 0) {
-            ciudades[atoi(arregloCarreteras[i].ciudad1)].costoTotal += 1;
-            ciudades[atoi(arregloCarreteras[i].ciudad2)].costoTotal += 1;
+    bool unionSets(const std::string& a, const std::string& b) {
+        std::string rootA = find(a);
+        std::string rootB = find(b);
+
+        if (rootA == rootB)
+            return false;
+
+        if (rank[rootA] < rank[rootB])
+            parent[rootA] = rootB;
+        else if (rank[rootA] > rank[rootB])
+            parent[rootB] = rootA;
+        else {
+            parent[rootB] = rootA;
+            rank[rootA]++;
+        }
+
+        return true;
+    }
+};
+
+class Road {
+public:
+    std::string id;
+    std::string city1;
+    std::string city2;
+    int cost;
+
+    Road(const std::string& i, const std::string& c1, const std::string& c2, int co = 0) : id(i), city1(c1), city2(c2), cost(co) {}
+};
+
+std::string reconstruct(std::vector<std::string> roads) {
+    std::vector<Road> damagedRoads;
+    UnionFind uf;
+    std::set<std::string> cities;
+    std::set<std::string> selectedRoads;
+
+    for (const auto& roadStr : roads) {
+        std::stringstream ss(roadStr);
+        std::string id, city1, city2;
+        ss >> id >> city1 >> city2;
+        uf.makeSet(city1);
+        uf.makeSet(city2);
+        cities.insert(city1);
+        cities.insert(city2);
+    }
+
+    for (const auto& roadStr : roads) {
+        std::stringstream ss(roadStr);
+        std::string id, city1, city2;
+        int cost = 0;
+        ss >> id >> city1 >> city2;
+        if (!(ss >> cost)) {
+            uf.unionSets(city1, city2);
+        } else {
+            damagedRoads.emplace_back(id, city1, city2, cost);
         }
     }
 
-    qsort(arregloCarreteras, numCarreteras, sizeof(Carretera), compararCarreteras);
+    std::sort(damagedRoads.begin(), damagedRoads.end(), [](const Road& a, const Road& b) {
+        return (a.cost != b.cost) ? (a.cost < b.cost) : (a.id < b.id);
+    });
 
-    inicializarCiudades(ciudades, MAX_CARRETERAS);
-
-    for (int i = 0; i < numCarreteras; i++) {
-        if (arregloCarreteras[i].costo > 0) {
-            int ciudad1 = atoi(arregloCarreteras[i].ciudad1);
-            int ciudad2 = atoi(arregloCarreteras[i].ciudad2);
-
-            unirCiudades(ciudades, ciudad1, ciudad2);
+    for (const auto& road : damagedRoads) {
+        if (uf.find(road.city1) != uf.find(road.city2)) {
+            uf.unionSets(road.city1, road.city2);
+            selectedRoads.insert(road.id);
         }
     }
 
-    int numComponentesConexas = 0;
-    int componenteConexa = -1;
-
-    for (int i = 0; i < MAX_CARRETERAS; i++) {
-        if (ciudades[i].costoTotal > 0) {
-            if (strcmp(ciudades[i].padre, "") == 0) {
-                numComponentesConexas++;
-                componenteConexa = i;
-            }
+    std::string root = uf.find(*cities.begin());
+    for (const auto& city : cities) {
+        if (uf.find(city) != root) {
+            return "IMPOSSIBLE";
         }
     }
 
-    if (numComponentesConexas > 1) {
-        return "IMPOSIBLE";
+    std::string result;
+    for (const auto& id : selectedRoads) {
+        result += id + " ";
     }
 
-    char* resultado = (char*)malloc(MAX_CARRETERAS * MAX_ELEMENTO_CARRETERA);
-    strcpy(resultado, "");
+    return result.empty() ? "" : result.substr(0, result.length() - 1);
+}
 
-    for (int i = 0; i < numCarreteras; i++) {
-        if (arregloCarreteras[i].costo > 0) {
-            strcat(resultado, arregloCarreteras[i].id);
-            strcat(resultado, " ");
-        }
-    }
-
-    return resultado;
+int main() {
+    // Puedes agregar código para probar la función reconstruct aquí
+    return 0;
 }
