@@ -1,104 +1,97 @@
 #include <iostream>
 #include <vector>
-#include <string>
-#include <sstream>
 #include <map>
-#include <set>
-#include <algorithm>
+#include <climits>
+#include <unordered_set>
 
-class UnionFind {
+using namespace std;
+
+class CustomUnionFind {
 private:
-    std::map<std::string, std::string> parent;
-    std::map<std::string, int> rank;
+    map<string, string> parent;
 
 public:
-    void makeSet(const std::string& s) {
-        parent[s] = s;
-        rank[s] = 0;
+    string find(const string& s) {
+        if (parent.find(s) == parent.end())
+            parent[s] = s;
+        else if (parent[s] != s)
+            parent[s] = find(parent[s]);
+        return parent[s];
     }
 
-    std::string find(const std::string& s) {
-        return (parent[s] == s) ? s : (parent[s] = find(parent[s]));
-    }
-
-    bool unionSets(const std::string& a, const std::string& b) {
-        std::string rootA = find(a);
-        std::string rootB = find(b);
-
-        if (rootA == rootB)
-            return false;
-
-        if (rank[rootA] < rank[rootB])
+    void merge(const string& a, const string& b) {
+        string rootA = find(a);
+        string rootB = find(b);
+        if (rootA != rootB)
             parent[rootA] = rootB;
-        else if (rank[rootA] > rank[rootB])
-            parent[rootB] = rootA;
-        else {
-            parent[rootB] = rootA;
-            rank[rootA]++;
-        }
+    }
 
+    bool areConnected(const string& a, const string& b) {
+        return find(a) == find(b);
+    }
+
+    bool allConnected(const vector<string>& cities) {
+        if (cities.empty()) return true;
+        string root = find(cities.front());
+        for (const auto& city : cities) {
+            if (find(city) != root) return false;
+        }
         return true;
     }
 };
 
-class Road {
-public:
-    std::string id;
-    std::string city1;
-    std::string city2;
+struct Road {
+    string id;
+    string city1;
+    string city2;
     int cost;
 
-    Road(const std::string& i, const std::string& c1, const std::string& c2, int co = 0) : id(i), city1(c1), city2(c2), cost(co) {}
+    Road(string i, string c1, string c2, int co = -1) : id(i), city1(c1), city2(c2), cost(co) {}
 };
 
-std::string reconstruct(std::vector<std::string> roads) {
-    std::vector<Road> damagedRoads;
-    UnionFind uf;
-    std::set<std::string> cities;
-    std::set<std::string> selectedRoads;
-
-    for (const auto& roadStr : roads) {
-        std::stringstream ss(roadStr);
-        std::string id, city1, city2;
-        ss >> id >> city1 >> city2;
-        uf.makeSet(city1);
-        uf.makeSet(city2);
-        cities.insert(city1);
-        cities.insert(city2);
+vector<string> split(const string& str, char delimiter) {
+    vector<string> tokens;
+    size_t start = 0;
+    size_t end = str.find(delimiter);
+    while (end != string::npos) {
+        tokens.push_back(str.substr(start, end - start));
+        start = end + 1;
+        end = str.find(delimiter, start);
     }
+    tokens.push_back(str.substr(start));
+    return tokens;
+}
+
+string reconstruct(vector<string> roads) {
+    vector<Road> allRoads;
+    vector<string> allCities;
+    CustomUnionFind uf;
+    unordered_set<string> roadsToRebuild;
 
     for (const auto& roadStr : roads) {
-        std::stringstream ss(roadStr);
-        std::string id, city1, city2;
-        int cost = 0;
-        ss >> id >> city1 >> city2;
-        if (!(ss >> cost)) {
-            uf.unionSets(city1, city2);
+        auto tokens = split(roadStr, ' ');
+        allCities.push_back(tokens[1]);
+        allCities.push_back(tokens[2]);
+        if (tokens.size() == 4) {
+            allRoads.emplace_back(tokens[0], tokens[1], tokens[2], stoi(tokens[3]));
         } else {
-            damagedRoads.emplace_back(id, city1, city2, cost);
+            uf.merge(tokens[1], tokens[2]);
         }
     }
 
-    std::sort(damagedRoads.begin(), damagedRoads.end(), [](const Road& a, const Road& b) {
-        return (a.cost != b.cost) ? (a.cost < b.cost) : (a.id < b.id);
-    });
-
-    for (const auto& road : damagedRoads) {
-        if (uf.find(road.city1) != uf.find(road.city2)) {
-            uf.unionSets(road.city1, road.city2);
-            selectedRoads.insert(road.id);
+    for (const auto& road : allRoads) {
+        if (!uf.areConnected(road.city1, road.city2)) {
+            uf.merge(road.city1, road.city2);
+            roadsToRebuild.insert(road.id);
         }
     }
 
-    std::string root = uf.find(*cities.begin());
-    for (const auto& city : cities) {
-        if (uf.find(city) != root) {
-            return "IMPOSSIBLE";
-        }
+    if (!uf.allConnected(allCities)) {
+        return "IMPOSSIBLE";
     }
 
-    std::string result;
-    for (const auto& id : selectedRoads) {
+    string result;
+    for (const auto& id : roadsToRebuild) {
         result += id + " ";
     }
 
@@ -106,6 +99,10 @@ std::string reconstruct(std::vector<std::string> roads) {
 }
 
 int main() {
-    // Puedes agregar código para probar la función reconstruct aquí
+    // Ejemplo de uso
+    vector<string> inputRoads = {"A X Y", "B Y Z 5", "C X Z 10", "D P Q 8"};
+    string output = reconstruct(inputRoads);
+    cout << "Resultado: " << output << endl;
+
     return 0;
 }
